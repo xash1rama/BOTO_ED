@@ -11,9 +11,9 @@
 `cd boto_test`
 
 ### 2. Усиановка зависимостей
-`python3 -m venv .venv
-source .venv/bin/activate  # Для macOS/Linux
-pip install .`
+`python3 -m venv .venv`
+`source .venv/bin/activate`  # Для macOS/Linux
+`pip install .`
 
 ### 3. Запуск приложения
 Запусти командой:
