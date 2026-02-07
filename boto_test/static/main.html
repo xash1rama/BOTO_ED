@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Boto URL Shortener</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 50px 20px; margin: 0; }
+
+        /* Основная карточка ввода */
+        .card { background: white; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); width: 100%; max-width: 500px; text-align: center; margin-bottom: 40px; }
+        h1 { color: #1c1e21; margin: 0 0 10px; font-size: 28px; }
+        h2 { color: #606770; font-size: 16px; font-weight: 400; margin-bottom: 25px; }
+
+        input { width: 100%; padding: 14px; margin: 10px 0; border: 2px solid #e4e6eb; border-radius: 10px; box-sizing: border-box; font-size: 16px; transition: all 0.3s; outline: none; }
+        input:focus { border-color: #007bff; box-shadow: 0 0 0 4px rgba(0,123,255,0.1); }
+
+        button.main-btn { width: 100%; padding: 14px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 16px; transition: background 0.3s, transform 0.1s; }
+        button.main-btn:hover { background: #0056b3; }
+        button.main-btn:active { transform: scale(0.98); }
+
+        /* Контейнер истории */
+        .history-container { width: 100%; max-width: 500px; }
+        h3 { color: #1c1e21; font-size: 18px; margin-bottom: 20px; }
+
+        /* Стандартный элемент списка */
+        .link-item {
+            background: white; margin-bottom: 12px; padding: 16px; border-radius: 12px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+
+        /* МАГИЯ: Стили для ПЕРВОГО (самого последнего) элемента */
+        #historyList .link-item:first-of-type {
+            border: 2px solid #007bff;
+            background: #f8fbff;
+            padding: 24px;
+            transform: scale(1.04);
+            box-shadow: 0 8px 25px rgba(0, 123, 255, 0.12);
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        /* Пометка "НОВОЕ" для первого элемента */
+        #historyList .link-item:first-of-type::before {
+            content: "НОВОЕ";
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: #007bff;
+            color: white;
+            font-size: 10px;
+            font-weight: 900;
+            padding: 4px 10px;
+            border-radius: 20px;
+            letter-spacing: 1px;
+        }
+
+        .link-info { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; }
+        .link-info a { color: #007bff; text-decoration: none; font-weight: 700; font-size: 15px; }
+
+        /* Увеличенная ссылка для первого элемента */
+        #historyList .link-item:first-of-type .link-info a { font-size: 20px; }
+
+        .full-url { color: #8d949e; font-size: 12px; display: block; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; }
+
+        .delete-btn { background: #feebeb; color: #ff4d4d; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; }
+        .delete-btn:hover { background: #ff4d4d; color: white; }
+
+        #error-box { margin-top: 15px; color: #d93025; background: #fff2f2; padding: 12px; border-radius: 10px; display: none; font-size: 14px; border: 1px solid #fad2cf; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>🤖 Boto Education</h1>
+        <h2>Сервис сокращения ссылок</h2>
+        <input type="text" id="urlInput" placeholder="https://example.com/very-long-link" required>
+        <button class="main-btn" onclick="shortenUrl()">Сократить ссылку</button>
+        <div id="error-box"></div>
+    </div>
+
+    <div class="history-container" id="historyList">
+        <!-- Сюда JS отрисует историю -->
+    </div>
+
+    <script>
+        window.onload = loadHistory;
+
+        async function loadHistory() {
+            try {
+                const res = await fetch('/links');
+                const links = await res.json();
+                const container = document.getElementById('historyList');
+                container.innerHTML = links.length > 0 ? '<h3 style="text-align:center">История запросов</h3>' : '';
+
+                links.forEach(link => {
+                    const div = document.createElement('div');
+                    div.className = 'link-item';
+                    div.innerHTML = `
+                        <div class="link-info">
+                            <span class="full-url">${link.full_url}</span>
+                            <a href="${link.short_url}" target="_blank">${link.short_url}</a>
+                        </div>
+                        <button class="delete-btn" onclick="deleteLink(${link.id})">Удалить</button>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (e) { console.error("Ошибка загрузки истории"); }
+        }
+
+        async function shortenUrl() {
+            const input = document.getElementById('urlInput');
+            const err = document.getElementById('error-box');
+            err.style.display = 'none';
+
+            if (!input.value) return;
+
+            try {
+                const res = await fetch('/shorten', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: input.value })
+                });
+
+                if (res.ok) {
+                    input.value = '';
+                    loadHistory();
+                } else {
+                    const data = await res.json();
+                    err.style.display = 'block';
+                    err.innerText = data.message || data.detail || "Некорректная ссылка";
+                }
+            } catch (e) {
+                err.style.display = 'block';
+                err.innerText = "Ошибка сервера";
+            }
+        }
+
+        async function deleteLink(id) {
+            if (confirm('Удалить эту ссылку?')) {
+                await fetch(`/links/${id}`, { method: 'DELETE' });
+                loadHistory();
+            }
+        }
+    </script>
+</body>
+</html>
