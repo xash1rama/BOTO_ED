@@ -9,7 +9,7 @@ from starlette.staticfiles import StaticFiles
 from pathlib import Path
 
 from routers.routers import router
-from setup import lifespan
+from conf import lifespan
 from dotenv import load_dotenv
 import logging
 
