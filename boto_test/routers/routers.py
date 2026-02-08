@@ -31,7 +31,7 @@ async def get_all_links(db: sqlite3.Connection = Depends(get_db)):
         {
             "id": r[0],
             "full_url": r[1],
-            "short_url": f"http://localhost:8000/{r[2]}"
+            "short_url": f"{r[2]}"
         } for r in rows
         ]
 
