@@ -5,7 +5,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from starlette.responses import RedirectResponse
 from schemas.schemas import ShortenRequest
 from database.models import get_db
-from main import logger
+import logging
+
 
 router = APIRouter(tags=["Shortener"]) 
 
@@ -29,7 +30,7 @@ async def get_all_links(db: sqlite3.Connection = Depends(get_db)):
         {
             "id": r["id"], 
             "full_url": r["full_url"], 
-            "short_url": f"http://localhost:8000/{r['short_code']}"
+            "short_url": f"{r['short_code']}"
         } for r in rows
     ]
 
