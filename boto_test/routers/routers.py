@@ -5,86 +5,84 @@ from fastapi import APIRouter, HTTPException, Depends
 from starlette.responses import RedirectResponse
 from schemas.schemas import ShortenRequest
 from database.models import get_db
-import logging
+from main import logger
 
-router = APIRouter(tags=["users"])
+router = APIRouter(tags=["Shortener"]) 
 
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
-
-def generate_code(length=6):
-    """Генерируем случайную ссылку из 6 значений (более 6 млрд вариантов)"""
+def generate_code(length: int = 6) -> str:
+    """
+    Генерирует случайную строку из букв и цифр.
+    6 символов дают ~56 миллиардов комбинаций, что исключает коллизии для небольших сервисов.
+    """
     chars = string.ascii_letters + string.digits
     return "".join(random.choice(chars) for _ in range(length))
 
-
-
-@router.get("/links")
+@router.get("/links", summary="Список всех ссылок")
 async def get_all_links(db: sqlite3.Connection = Depends(get_db)):
-    """Для отображения истории запросов"""
+    """
+    Возвращает историю всех сокращенных ссылок. 
+    """
     rows = db.execute("SELECT id, full_url, short_code FROM urls ORDER BY id DESC").fetchall()
     return [
         {
-            "id": r[0],
-            "full_url": r[1],
-            "short_url": f"{r[2]}"
+            "id": r["id"], 
+            "full_url": r["full_url"], 
+            "short_url": f"http://localhost:8000/{r['short_code']}"
         } for r in rows
-        ]
+    ]
 
-
-@router.delete("/links/{link_id}")
-async def delete_link(link_id: int, db: sqlite3.Connection = Depends(get_db)):
-    """Удалить ссылку по ID."""
-    cursor = db.execute("DELETE FROM urls WHERE id = ?", (link_id,))
-    if cursor.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Link not found")
-    logger.info(f"Удаляем ссылку с id: {link_id}")  # <- Логируем
-    db.commit()
-    return {"message": "Deleted successfully"}
-
-
-@router.post("/shorten")
+@router.post("/shorten", status_code=201, summary="Создать короткую ссылку")
 async def shorten(request: ShortenRequest, db: sqlite3.Connection = Depends(get_db)):
-    code = generate_code()  # <- Создаем случайное значение
+    """
+    Принимает длинный URL, генерирует уникальный код и сохраняет пару в базу.
+    """
+    code = generate_code()
+    url_str = str(request.url) 
+    
     try:
         db.execute(
-                "INSERT INTO urls (full_url, short_code) VALUES (?, ?)",
-                (str(request.url), code),
-            )  # <- Создаем запись в бд если ссылка валидна
+            "INSERT INTO urls (full_url, short_code) VALUES (?, ?)",
+            (url_str, code),
+        )
         db.commit()
+        logger.info(f"URL сокращен: {url_str} -> {code}")
+        return {"short_url": f"http://localhost:8000/{code}"}
+    
+    except sqlite3.Error as e:
+        logger.error(f"Ошибка БД при сохранении: {e}")
+        raise HTTPException(status_code=500, detail="Не удалось сохранить ссылку")
 
-        logger.info(f"Сократили: {request.url} -> {code}")  # <- Логируем
-        return {
-            "short_url": f"http://localhost:8000/{code}"
-        }  # <- Даем ответ если небыло ошибок
-    except Exception as e:
-        ###Использую Exception что бы не обрабатывать кучу случаев
-        logger.error(f"Error saving URL: {e}")  # <- Логируем ошибку
-        raise HTTPException(
-            status_code=500, detail="Database error"
-        )  # <- Высвечивается окно с ошибкой
-
-
-@router.get("/{code}")
+@router.get("/{code}", summary="Редирект")
 async def redirect(code: str, db: sqlite3.Connection = Depends(get_db)):
-    cursor = db.execute(
+    """
+    Ищет оригинальную ссылку по коду. 
+    Если находит перенаправляет пользователя
+    """
+    row = db.execute(
         "SELECT full_url FROM urls WHERE short_code = ?", (code,)
-    )  # <- ищем код который сгенерировали и по нему достаем полную ссылку
-    row = cursor.fetchone()
+    ).fetchone()
 
     if row:
-        logger.info(f"Перенеслись из {code} to {row[0]}")
-        return RedirectResponse(
-            url=row[0]
-        )  # <- редиректимся по нашему коду в сохраненную ссылку
+        logger.info(f"Переход по коду {code} на {row['full_url']}")
+        return RedirectResponse(url=row["full_url"])
 
-    logger.warning(f"Код не найден: {code}")
-    raise HTTPException(
-        status_code=404, detail="URL not found"
-    )  # <- Если ссылку по коду не нашли
+    logger.warning(f"Попытка доступа по несуществующему коду: {code}")
+    raise HTTPException(status_code=404, detail="Короткая ссылка не найдена")
+
+@router.delete("/links/{link_id}", summary="Удалить ссылку")
+async def delete_link(link_id: int, db: sqlite3.Connection = Depends(get_db)):
+    """
+    Удаляет запись о ссылке из базы по её ID.
+    """
+    cursor = db.execute("DELETE FROM urls WHERE id = ?", (link_id,))
+    db.commit()
+    
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    
+    logger.info(f"Удалена ссылка ID: {link_id}")
+    return {"message": "Успешно удалено"}
 
 
