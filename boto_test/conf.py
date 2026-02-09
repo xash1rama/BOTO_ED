@@ -6,10 +6,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_URL = os.getenv("DB_URL")
-
+DB_URL = os.getenv("DB_URL", "links.db")
 
 @asynccontextmanager
-async def lifespan(main_app: FastAPI):
-    init_db(DB_URL)
-    yield
+async def lifespan(app: FastAPI):
+    """
+    Все, что ДО yield — выполняется при старте.
+    Все, что ПОСЛЕ — при выключении приложения.
+    """
+        init_db(DB_URL)
+    yield  
