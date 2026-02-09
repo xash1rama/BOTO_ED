@@ -14,5 +14,5 @@ async def lifespan(app: FastAPI):
     Все, что ДО yield — выполняется при старте.
     Все, что ПОСЛЕ — при выключении приложения.
     """
-        init_db(DB_URL)
+    init_db(DB_URL)
     yield  
