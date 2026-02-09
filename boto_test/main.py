@@ -41,15 +41,19 @@ app.include_router(router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-@app.get("/", response_class=HTMLResponse)
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def read_root():
+    """Отдает основной интерфейс приложения"""
     file_path = Path("static/main.html")
     return FileResponse(file_path, media_type="text/html")
-
-
+    
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request, exc):
-    logger.error(f"Ошибка валидации: {exc.errors()}")
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Перехватывает ошибки Pydantic и возвращает их в понятном виде.
+    """
+    logger.error(f"Ошибка ввода на {request.url.path}: {exc.errors()}")
     return JSONResponse(
         status_code=422,
         content={
